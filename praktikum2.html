@@ -2,12 +2,23 @@
 <head>
     <title>Pertemuan 3 Styling css</title>
     <style>
-        input{
-            width: 80%;
-            background: blanchedalmond;
-        }
-    #username{ background:green;}
-    .bg-grey{ background:grey;}
+        section{border:1px solid red;   padding: 8px; }
+input{
+  padding: 5px 2px 0px 1px;
+  
+  
+  width:80%;
+  background:purple;
+}  
+#username{ background:green;}
+.bg-grey{ background:grey;}
+  
+@media screen and (max-width: 700px) {
+[class*='col-'] { width: 50%; }
+}
+@media screen and (max-width: 450px) {
+[class*='col-'] { width: 100%; }
+}
     </style>
 </head>
     <body>
