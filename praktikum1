@@ -1,0 +1,56 @@
+<html>
+<head>
+    <title>Pertemuan 2 HTML dasar</title>
+</head>
+    <body>
+   <header><a href="ipwija.ac.id"> Home</a></header> 
+   <main>hi
+    <br/>
+   </main id="main" class=""main>
+<section>Hallo world</section>
+
+<section id="gambar">
+    <img src="fotoku.jpg" height="240" width="200">
+</section>
+
+<section id="form">
+    <form>
+        <label> Username : </label><input type="text">
+        <label> Password : </label><input type="password">
+        <label> Warna : </label><input type="color">
+        <label> Dropdown : </label>
+        <select>
+            <option>1</option>
+            <option>2</option>
+        </select>
+    <input type="submit" value="cancel">
+        <button>Login</button>
+    </form>
+    </section>
+    <p>
+        <h1>Pertemuan 2 Pemograman Web</h1>
+        <h2>HTML dasar</h2>
+        Pertemuan 2 dasar html membuat paragraf <br/> sederhana dengan huruf <i>miring</i>, <b>tebal</b>.
+    </p>
+    <ul>
+        <li>1</li>
+    </ul>
+    <ol>
+        <li>satu</li>
+    </ol>
+</section>
+<section id="table">
+    <h2>Table</h2>
+    <table border="1">
+        <thead>
+            <tr><th>Jan</th> <th>Feb</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>1</td> <td>2</td></tr>
+            <tr><td>3</td> <td>4</td></tr>
+        </tbody>
+    </table>
+</section>
+<footer>@2025</footer>
+</body>
+</html>
