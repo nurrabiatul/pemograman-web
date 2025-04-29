@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manipulasi HTML + CSS dengan JavaScript</title>
+    <style>
+        body {
+            font-family: 'Poppins', Arial, sans-serif;
+            background: #f0f2f5;
+            padding: 40px;
+            text-align: center;
+        }
+
+        h1 {
+            color: #34495e;
+            margin-bottom: 30px;
+        }
+
+        #dynamicContent {
+            padding: 20px;
+            margin: 20px auto;
+            width: 80%;
+            max-width: 600px;
+            background: #fff;
+            border: 2px dashed #3498db;
+            border-radius: 10px;
+            transition: all 0.4s ease;
+        }
+
+        .highlight {
+            background-color: #3498db;
+            color: #fff;
+            transform: scale(1.05);
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .bubble {
+            animation: bubbleEffect 0.6s ease-in-out;
+        }
+
+        @keyframes bubbleEffect {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.25); }
+            100% { transform: scale(1); }
+        }
+
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            margin: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s, transform 0.2s;
+        }
+
+        button:hover {
+            background: #2980b9;
+            transform: scale(1.05);
+        }
+
+        form {
+            margin-top: 30px;
+        }
+
+        input[type="text"] {
+            padding: 10px;
+            width: 200px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            margin-right: 10px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            border-color: #3498db;
+            outline: none;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🎨 Manipulasi HTML + CSS dengan JavaScript</h1>
+
+    <button onclick="changeContent()">Ubah Konten</button>
+    <button onclick="toggleVisibility()">Tampilkan/Sembunyikan</button>
+    <button onclick="addBubbleAnimation()">Animasi Efek</button>
+
+    <div id="dynamicContent">Konten ini akan diubah secara dinamis.</div>
+
+    <form onsubmit="validateForm(event)">
+        <input type="text" id="name" name="name" placeholder="Masukkan Nama..." required>
+        <button type="submit">Kirim</button>
+    </form>
+
+    <script>
+        function changeContent() {
+            const content = document.getElementById('dynamicContent');
+            content.innerHTML = '✨ Konten telah diperbarui dengan efek keren!';
+            content.classList.toggle('highlight');
+        }
+
+        function toggleVisibility() {
+            const content = document.getElementById('dynamicContent');
+            content.classList.toggle('hidden');
+        }
+
+        function addBubbleAnimation() {
+            const content = document.getElementById('dynamicContent');
+            content.classList.remove('bubble'); // Reset
+            void content.offsetWidth; // Trigger reflow
+            content.classList.add('bubble'); // Re-add
+        }
+
+        function validateForm(event) {
+            event.preventDefault();
+            const name = document.getElementById('name').value.trim();
+            if (name === '') {
+                alert('⚠️ Nama tidak boleh kosong!');
+            } else {
+                alert(`✅ Terima kasih, ${name}! Formulir berhasil dikirim.`);
+            }
+        }
+    </script>
+
+</body>
+</html>
