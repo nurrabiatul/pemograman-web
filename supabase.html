@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Toko Barang</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js/dist/umd/supabase.min.js"></script>
+  <style>
+  body {
+    font-family: 'Poppins', sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #fff0f5;
+    color: #4a4a4a;
+  }
+
+  header {
+    background-color: #f78fb3;
+    padding: 30px;
+    text-align: center;
+    color: white;
+    border-bottom: 5px solid #f368e0;
+    box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+  }
+
+  header h1 {
+    font-size: 2.5rem;
+    letter-spacing: 1.5px;
+  }
+
+  section {
+    background: #ffffff;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin: 20px auto;
+    width: 90%;
+    max-width: 800px;
+  }
+
+  h2 {
+    font-size: 1.8rem;
+    color: #f368e0;
+    margin-bottom: 15px;
+  }
+
+  ul {
+    list-style-type: none;
+    padding-left: 0;
+  }
+
+  li {
+    padding: 12px 10px;
+    font-size: 1rem;
+    border-bottom: 1px solid #e0e0e0;
+    transition: background-color 0.2s;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  li:hover {
+    background-color: #ffe4ec;
+  }
+
+  li:last-child {
+    border-bottom: none;
+  }
+
+  button {
+    margin-left: 10px;
+    background-color: #f78fb3;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+
+  button:hover {
+    background-color: #f368e0;
+  }
+
+  .hapus-btn {
+    background-color: #ff6b81;
+  }
+
+  .hapus-btn:hover {
+    background-color: #ff4757;
+  }
+
+  input[type="number"] {
+    width: 70px;
+    padding: 6px;
+    margin-left: 10px;
+    border: 2px solid #f7c6d3;
+    border-radius: 6px;
+    font-size: 1rem;
+    background-color: #fff0f5;
+  }
+
+  footer {
+    text-align: center;
+    font-size: 0.9em;
+    margin-top: 30px;
+    color: #777;
+  }
+
+  @media (max-width: 600px) {
+    header h1 {
+      font-size: 1.8rem;
+    }
+
+    li {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    input[type="number"],
+    button {
+      margin-top: 8px;
+    }
+  }
+</style>
+
+<header>
+  <h1 id="salam">Selamat Datang!</h1>
+</header>
+
+<section>
+  <h2>Produk Kami</h2>
+  <ul id="daftar-produk">Memuat produk...</ul>
+</section>
+
+<section>
+  <h2>Ringkasan Belanja</h2>
+  <ul id="keranjang">Memuat keranjang...</ul>
+  <p><strong>Total Belanja : Rp<span id="total-belanja">0</span></strong></p>
+</section>
+
+<footer>
+  &copy; <span id="tahun"></span> Toko Barang       
+</footer>
+
+<script>
+  const supabaseUrl = 'https://ixjzadyjyjmhzrsfqmew.supabase.co';
+  const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml4anphZHlqeWptaHpyc2ZxbWV3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcxMDgyNTAsImV4cCI6MjA2MjY4NDI1MH0.3uJ-NERa4fbTk9z58f-5Mnb7yXfG3s2nGs4lu8NKtbk';
+  const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+  function tampilkanSalam() {
+    const jam = new Date().getHours();
+    let salam;
+    if (jam >= 5 && jam < 12) {
+      salam = "Selamat Pagi";
+    } else if (jam >= 12 && jam < 18) {
+      salam = "Selamat Siang";
+    } else if (jam >= 18 && jam < 21) {
+      salam = "Selamat Sore";
+    } else {
+      salam = "Selamat Malam";
+    }
+    document.getElementById("salam").textContent = `${salam}, Mahasiswa!`;
+  }
+
+  async function tampilkanProduk() {
+    const daftarProduk = document.getElementById("daftar-produk");
+    daftarProduk.innerHTML = "<li>Memuat...</li>";
+
+    const { data, error } = await supabase.from('produk_kami').select('*');
+
+    if (error) {
+      daftarProduk.innerHTML = "<li>Gagal memuat produk.</li>";
+      console.error(error);
+      return;
+    }
+
+    daftarProduk.innerHTML = "";
+    data.forEach(item => {
+      const li = document.createElement("li");
+      li.innerHTML = `
+        ${item.nama_produk} - Rp${item.harga.toLocaleString("id-ID")}
+        <input type="number" id="jumlah-${item.id}" value="1" min="1"/>
+        <button onclick="tambahKeKeranjang(${item.id}, '${item.nama_produk}', ${item.harga})">Tambah</button>
+      `;
+      daftarProduk.appendChild(li);
+    });
+  }
+
+  async function tambahKeKeranjang(id, nama, harga) {
+    const jumlah = parseInt(document.getElementById(`jumlah-${id}`).value);
+    if (jumlah < 1) {
+      alert("Jumlah tidak valid!");
+      return;
+    }
+
+    // Cek apakah produk sudah ada di keranjang
+    const { data: existing, error: fetchError } = await supabase
+      .from('keranjang_belanja')
+      .select('*')
+      .eq('nama', nama)
+      .single();
+
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      console.error(fetchError);
+      alert("Gagal memeriksa keranjang.");
+      return;
+    }
+
+    if (existing) {
+      // Update jumlah jika sudah ada
+      const { error: updateError } = await supabase
+        .from('keranjang_belanja')
+        .update({ jumlah: existing.jumlah + jumlah })
+        .eq('id', existing.id);
+      if (updateError) {
+        alert("Gagal memperbarui keranjang.");
+        console.error(updateError);
+        return;
+      }
+    } else {
+      // Tambahkan baru
+      const { error: insertError } = await supabase
+        .from('keranjang_belanja')
+        .insert([{ nama, jumlah, harga }]);
+      if (insertError) {
+        alert("Gagal menambah ke keranjang.");
+        console.error(insertError);
+        return;
+      }
+    }
+
+    alert(`Berhasil menambah ${jumlah} ${nama} ke keranjang!`);
+    tampilkanKeranjang();
+  }
+
+  async function hapusDariKeranjang(id) {
+    const { error } = await supabase
+      .from('keranjang_belanja')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      alert("Gagal menghapus item.");
+      console.error(error);
+    } else {
+      tampilkanKeranjang();
+    }
+  }
+
+  async function tampilkanKeranjang() {
+    const keranjangList = document.getElementById("keranjang");
+    const totalEl = document.getElementById("total-belanja");
+    keranjangList.innerHTML = "<li>Memuat...</li>";
+
+    const { data, error } = await supabase.from('keranjang_belanja').select('*');
+
+    if (error) {
+      keranjangList.innerHTML = "<li>Gagal memuat keranjang.</li>";
+      console.error(error);
+      return;
+    }
+
+    keranjangList.innerHTML = "";
+    let total = 0;
+    data.forEach(item => {
+      const li = document.createElement("li");
+      li.innerHTML = `
+        ${item.jumlah} x ${item.nama} = Rp${item.harga.toLocaleString("id-ID")}
+        <button onclick="hapusDariKeranjang(${item.id})">Hapus</button>
+      `;
+      keranjangList.appendChild(li);
+      total += item.jumlah * item.harga;
+    });
+
+    totalEl.textContent = total.toLocaleString("id-ID");
+  }
+
+  function tampilkanTahun() {
+    document.getElementById("tahun").textContent = new Date().getFullYear();
+  }
+
+  window.onload = function () {
+    tampilkanSalam();
+    tampilkanProduk();
+    tampilkanKeranjang();
+    tampilkanTahun();
+  };
+</script>
+
+</body>
+</html>
