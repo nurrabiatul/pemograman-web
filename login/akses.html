@@ -36,26 +36,11 @@
   </div>
 </div>
 
-  <div class="action-buttons">
-    <button id="loginBtn">Login untuk akses data</button>
-<button id="logoutBtn">Logout</button>
-  </div>
-  <div id="content"></div>
-
-  <div class="content-card">
-    <h3>Sosial Media</h3>
-    <ul>
-      <li><strong>linkedin :</strong> http://linkedin.com/in/sismadi</li>
-      <li><strong>credly :</strong> https://www.credly.com/users/wawan-sismadi</li>
-    </ul>
-  </div>
-</div>
-
-<script type="module">
+  <script type="module">
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
-const SUPABASE_URL = 'https://zligkbkrxqqbetnwykrq.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpsaWdrYmtyeHFxYmV0bnd5a3JxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkyNjM2ODUsImV4cCI6MjA2NDgzOTY4NX0.kDK8_c6qCKKRax4HbHwEbAMwTavhDRWdgqkDtjWWYD8'
+const SUPABASE_URL = 'https://ixjzadyjyjmhzrsfqmew.supabase.co'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml4anphZHlqeWptaHpyc2ZxbWV3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcxMDgyNTAsImV4cCI6MjA2MjY4NDI1MH0.3uJ-NERa4fbTk9z58f-5Mnb7yXfG3s2nGs4lu8NKtbk'
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 const content = document.getElementById('content')
@@ -66,7 +51,7 @@ async function login() {
     email: 'user@example.com', // ganti dengan akun terdaftar
     password: 'password123'     // ganti sesuai user
   })
-
+  
   if (error) {
     alert('Login gagal: ' + error.message)
     return
