@@ -52,7 +52,7 @@ async function login() {
     password: 'password123'     // ganti sesuai user
   })
   
-  if (error) {
+ if (error) {
     alert('Login gagal: ' + error.message)
     return
   }
@@ -77,9 +77,6 @@ async function loadData() {
     return
   }
 
-
-
-
   const { data, error } = await supabase
     .from('web3')
     .select('*')
@@ -99,21 +96,16 @@ async function loadData() {
       </div>
     `
   })
-
   content.innerHTML = out
-
 }
-
 
 document.getElementById('loginBtn').addEventListener('click', login)
 document.getElementById('logoutBtn').addEventListener('click', logout)
-
 
 window.addEventListener('DOMContentLoaded', async () => {
   const { data: { user } } = await supabase.auth.getUser()
   if (user) loadData()
 })
 </script>
-
 </body>
 </html>
