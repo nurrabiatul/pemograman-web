@@ -1,160 +1,232 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aplikasi Deteksi Objek TensorFlow.js</title>
-    
-    <style>
-        /* Gaya Sederhana untuk Tata Letak */
-        body {
-            font-family: sans-serif;
-            margin: 20px;
-            text-align: center;
-            background-color: #f4f4f9;
-        }
-        h1 {
-            color: #333;
-        }
-        #container {
-            position: relative;
-            margin: 20px auto;
-            width: fit-content;
-            border: 2px solid #ccc;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        }
-        video, canvas {
-            display: block;
-        }
-        /* Video akan menampilkan input webcam */
-        #videoElement {
-            transform: scaleX(-1); /* Membalik video agar terasa seperti cermin */
-            width: 640px;
-            height: 480px;
-            background-color: #000;
-        }
-        /* Canvas akan menimpa video untuk menampilkan bounding box */
-        #canvasElement {
-            position: absolute;
-            top: 0;
-            left: 0;
-        }
-        #status {
-            margin-top: 15px;
-            padding: 10px;
-            background-color: #e0f7fa;
-            border-radius: 5px;
-            color: #00796b;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deteksi Objek + Warna</title>
+
+  <!-- TensorFlow + COCO SSD -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+
+  <style>
+    :root {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --bg: #f5f5f7;
+      --card: #ffffff;
+      --border: #e5e5e8;
+      --text-main: #1d1d1f;
+      --accent: #0a84ff;
+    }
+
+    body {
+      background: var(--bg);
+      margin: 0;
+      padding: 24px;
+      color: var(--text-main);
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 22px;
+      margin-bottom: 24px;
+    }
+
+    .wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    video {
+      width: 420px;
+      max-width: 95vw;
+      border-radius: 18px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+
+    canvas {
+      position: absolute;
+      left: 0;
+      top: 0;
+    }
+
+    .buttons {
+      margin-top: 16px;
+    }
+
+    button {
+      background: var(--accent);
+      padding: 12px 18px;
+      border: none;
+      border-radius: 14px;
+      color: white;
+      cursor: pointer;
+      font-size: 15px;
+    }
+
+    button:disabled {
+      background: #999;
+    }
+
+    .info-card {
+      margin-top: 30px;
+      padding: 20px;
+      background: var(--card);
+      border-radius: 18px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+      border: 1px solid var(--border);
+      width: 340px;
+    }
+
+    .item {
+      margin-bottom: 10px;
+      font-size: 15px;
+    }
+
+    .color-swatch {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      display: inline-block;
+      margin-left: 10px;
+      border: 1px solid #ccc;
+      vertical-align: middle;
+    }
+  </style>
 </head>
 <body>
 
-    <header>
-        <h1>Aplikasi Deteksi Objek</h1>
-        <p>Menggunakan **TensorFlow.js** untuk deteksi objek real-time.</p>
-    </header>
+<h1>Deteksi Objek + Warna</h1>
 
-    <div id="container">
-        <video id="videoElement" autoplay playsinline muted></video>
-        
-        <canvas id="canvasElement"></canvas>
-    </div>
+<div class="wrapper">
+  <div style="position: relative;">
+    <video id="video" autoplay muted playsinline></video>
+    <canvas id="canvas"></canvas>
+  </div>
 
-    <div id="status">Status: Menunggu inisialisasi model...</div>
+  <div class="buttons">
+    <button id="startBtn">Mulai Kamera</button>
+    <button id="stopBtn" disabled>Stop</button>
+  </div>
 
-    <footer>
-        <p>&copy; 2024 Demo Aplikasi Deteksi Objek</p>
-    </footer>
+  <div class="info-card">
+    <div class="item"><b>Objek Terdeteksi:</b></div>
+    <div id="objectList">(Belum ada)</div>
+  </div>
+</div>
 
-    <script>
-        // --- Bagian JavaScript (Placeholder Logika Deteksi) ---
-        
-        const video = document.getElementById('videoElement');
-        const canvas = document.getElementById('canvasElement');
-        const statusDiv = document.getElementById('status');
-        const context = canvas.getContext('2d');
-        
-        // 1. Dapatkan Akses ke Webcam
-        async function setupWebcam() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                video.srcObject = stream;
-                
-                return new Promise((resolve) => {
-                    video.onloadedmetadata = () => {
-                        // Atur ukuran canvas agar sesuai dengan video
-                        canvas.width = video.videoWidth;
-                        canvas.height = video.videoHeight;
-                        resolve(true);
-                    };
-                });
-            } catch (error) {
-                statusDiv.textContent = 'ERROR: Gagal mengakses webcam. Pastikan Anda memberikan izin.';
-                console.error(error);
-            }
-        }
+<canvas id="hidden" style="display:none;"></canvas>
 
-        // 2. Placeholder untuk Inisialisasi Model TensorFlow.js
-        async function loadModel() {
-            statusDiv.textContent = 'Memuat model TensorFlow.js...';
-            
-            // Catatan: Di sini Anda akan menggunakan tf.loadGraphModel atau serupa
-            // untuk memuat model COCO-SSD, MobileNet, atau model kustom Anda.
-            
-            // Contoh Placeholder:
-            await new Promise(resolve => setTimeout(resolve, 2000)); // Simulasi pemuatan 2 detik
-            statusDiv.textContent = 'Model berhasil dimuat. Siap mendeteksi.';
-            
-            return {
-                // Objek model placeholder
-                detect: async (source) => {
-                    // Logika deteksi placeholder:
-                    // Di sini seharusnya Anda memanggil model.execute() atau model.detect()
-                    console.log('Mendeteksi objek...');
-                    return []; // Mengembalikan array kosong untuk demo
-                }
-            };
-        }
+<script>
+  let model;
+  let stream;
+  let running = false;
 
-        // 3. Loop Deteksi (Main Loop)
-        async function detectionLoop(model) {
-            
-            const predictions = await model.detect(video);
-            
-            // Hapus hasil sebelumnya
-            context.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // Placeholder: Gambar hasil deteksi (bounding box)
-            // Di sini Anda akan mengiterasi array 'predictions' dan menggambar di canvas
-            
-            // Contoh menggambar kotak dummy:
-            if (predictions.length === 0) {
-                 context.strokeStyle = 'red';
-                 context.lineWidth = 2;
-                 // Gambar kotak di tengah
-                 context.strokeRect(canvas.width / 4, canvas.height / 4, canvas.width / 2, canvas.height / 2);
-                 context.fillStyle = 'red';
-                 context.font = '24px Arial';
-                 context.fillText('Objek Dummy', canvas.width / 4, canvas.height / 4 - 10);
-            }
-            
-            // Panggil loop lagi untuk frame berikutnya
-            requestAnimationFrame(() => detectionLoop(model));
-        }
+  const video = document.getElementById("video");
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d");
+  const hiddenCanvas = document.getElementById("hidden");
+  const hctx = hiddenCanvas.getContext("2d");
 
-        // 4. Fungsi Utama
-        async function main() {
-            const webcamReady = await setupWebcam();
-            if (webcamReady) {
-                const model = await loadModel();
-                video.play();
-                detectionLoop(model);
-            }
-        }
-        
-        main();
+  const startBtn = document.getElementById("startBtn");
+  const stopBtn = document.getElementById("stopBtn");
+  const objectList = document.getElementById("objectList");
 
-    </script>
+  function getColorName([r,g,b]) {
+    if (r > 200 && g < 80 && b < 80) return "Merah";
+    if (r < 80 && g > 200 && b < 80) return "Hijau";
+    if (r < 80 && g < 80 && b > 200) return "Biru";
+    if (r > 200 && g > 200 && b < 80) return "Kuning";
+    if (r > 200 && g < 80 && b > 200) return "Magenta";
+    if (r < 80 && g > 200 && b > 200) return "Cyan";
+    if (r > 180 && g > 180 && b > 180) return "Putih";
+    if (r < 60 && g < 60 && b < 60) return "Hitam";
+    return "Tidak Diketahui";
+  }
+
+  function toHex([r,g,b]) {
+    return "#" + [r,g,b].map(v => v.toString(16).padStart(2,"0")).join("");
+  }
+
+  async function detectFrame() {
+    if (!running) return;
+
+    const w = video.videoWidth;
+    const h = video.videoHeight;
+    canvas.width = w;
+    canvas.height = h;
+
+    const predictions = await model.detect(video);
+    ctx.clearRect(0,0,w,h);
+
+    objectList.innerHTML = "";
+
+    predictions.forEach(pred => {
+      const [x,y,width,height] = pred.bbox;
+
+      // ambil warna tengah bounding-box
+      hiddenCanvas.width = width;
+      hiddenCanvas.height = height;
+      hctx.drawImage(video, x, y, width, height, 0, 0, width, height);
+
+      const cx = Math.floor(width/2);
+      const cy = Math.floor(height/2);
+
+      const pixel = hctx.getImageData(cx, cy, 1, 1).data;
+      const rgb = [pixel[0], pixel[1], pixel[2]];
+      const hex = toHex(rgb);
+      const colorName = getColorName(rgb);
+
+      // gambar kotak objek
+      ctx.strokeStyle = hex;
+      ctx.lineWidth = 3;
+      ctx.strokeRect(x, y, width, height);
+
+      ctx.fillStyle = hex;
+      ctx.fillRect(x, y - 25, 140, 22);
+
+      ctx.fillStyle = "#fff";
+      ctx.font = "14px sans-serif";
+      ctx.fillText(`${pred.class} (${colorName})`, x + 4, y - 8);
+
+      objectList.innerHTML += `
+        <div class="item">
+          ${pred.class} → <b>${colorName}</b>
+          <span class="color-swatch" style="background:${hex}"></span>
+        </div>
+      `;
+    });
+
+    requestAnimationFrame(detectFrame);
+  }
+
+  async function startCamera() {
+    stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    video.srcObject = stream;
+
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+
+    running = true;
+    detectFrame();
+  }
+
+  function stopCamera() {
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    running = false;
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+  }
+
+  // Load model dulu
+  cocoSsd.load().then(m => {
+    model = m;
+  });
+
+  startBtn.onclick = startCamera;
+  stopBtn.onclick = stopCamera;
+</script>
+
 </body>
 </html>
