@@ -3,229 +3,165 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Deteksi Objek + Warna</title>
+  <title>Deteksi Objek + Warna (Fixed)</title>
 
-  <!-- TensorFlow + COCO SSD -->
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+  <!-- TensorFlow + COCO-SSD -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.18.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@3.0.0"></script>
 
   <style>
-    :root {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      --bg: #f5f5f7;
-      --card: #ffffff;
-      --border: #e5e5e8;
-      --text-main: #1d1d1f;
-      --accent: #0a84ff;
-    }
-
     body {
-      background: var(--bg);
-      margin: 0;
-      padding: 24px;
-      color: var(--text-main);
-    }
-
-    h1 {
-      text-align: center;
-      font-size: 22px;
-      margin-bottom: 24px;
-    }
-
-    .wrapper {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-
-    video {
-      width: 420px;
-      max-width: 95vw;
-      border-radius: 18px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-    }
-
-    canvas {
-      position: absolute;
-      left: 0;
-      top: 0;
-    }
-
-    .buttons {
-      margin-top: 16px;
-    }
-
-    button {
-      background: var(--accent);
-      padding: 12px 18px;
-      border: none;
-      border-radius: 14px;
-      color: white;
-      cursor: pointer;
-      font-size: 15px;
-    }
-
-    button:disabled {
-      background: #999;
-    }
-
-    .info-card {
-      margin-top: 30px;
+      font-family: sans-serif;
+      background: #f4f4f6;
       padding: 20px;
-      background: var(--card);
-      border-radius: 18px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.06);
-      border: 1px solid var(--border);
-      width: 340px;
+      text-align: center;
     }
-
-    .item {
-      margin-bottom: 10px;
-      font-size: 15px;
+    video, canvas {
+      width: 450px;
+      max-width: 95vw;
+      border-radius: 12px;
     }
-
-    .color-swatch {
-      width: 30px;
-      height: 30px;
-      border-radius: 8px;
-      display: inline-block;
-      margin-left: 10px;
-      border: 1px solid #ccc;
-      vertical-align: middle;
+    #canvas {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      top: 0;
     }
   </style>
 </head>
 <body>
 
-<h1>Deteksi Objek + Warna</h1>
+<h2>Deteksi Objek + Warna (Sudah Diperbaiki)</h2>
 
-<div class="wrapper">
-  <div style="position: relative;">
-    <video id="video" autoplay muted playsinline></video>
-    <canvas id="canvas"></canvas>
-  </div>
-
-  <div class="buttons">
-    <button id="startBtn">Mulai Kamera</button>
-    <button id="stopBtn" disabled>Stop</button>
-  </div>
-
-  <div class="info-card">
-    <div class="item"><b>Objek Terdeteksi:</b></div>
-    <div id="objectList">(Belum ada)</div>
-  </div>
+<div style="position: relative; display: inline-block;">
+  <video id="video" autoplay muted playsinline></video>
+  <canvas id="canvas"></canvas>
 </div>
+
+<br><br>
+
+<button id="startBtn" disabled>Mulai Kamera</button>
+<button id="stopBtn" disabled>Stop</button>
+
+<p id="status">Loading model...</p>
 
 <canvas id="hidden" style="display:none;"></canvas>
 
 <script>
-  let model;
-  let stream;
-  let running = false;
+let model = null;
+let stream = null;
+let running = false;
 
-  const video = document.getElementById("video");
-  const canvas = document.getElementById("canvas");
-  const ctx = canvas.getContext("2d");
-  const hiddenCanvas = document.getElementById("hidden");
-  const hctx = hiddenCanvas.getContext("2d");
+// Elemen UI
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+const hidden = document.getElementById("hidden");
+const hctx = hidden.getContext("2d");
+const status = document.getElementById("status");
+const startBtn = document.getElementById("startBtn");
+const stopBtn = document.getElementById("stopBtn");
 
-  const startBtn = document.getElementById("startBtn");
-  const stopBtn = document.getElementById("stopBtn");
-  const objectList = document.getElementById("objectList");
+function getColorName([r,g,b]) {
+  if (r > 200 && g < 80 && b < 80) return "Merah";
+  if (r < 80 && g > 200 && b < 80) return "Hijau";
+  if (r < 80 && g < 80 && b > 200) return "Biru";
+  if (r > 200 && g > 200 && b < 80) return "Kuning";
+  if (r > 180 && g > 180 && b > 180) return "Putih";
+  if (r < 60 && g < 60 && b < 60) return "Hitam";
+  return "Tidak Diketahui";
+}
 
-  function getColorName([r,g,b]) {
-    if (r > 200 && g < 80 && b < 80) return "Merah";
-    if (r < 80 && g > 200 && b < 80) return "Hijau";
-    if (r < 80 && g < 80 && b > 200) return "Biru";
-    if (r > 200 && g > 200 && b < 80) return "Kuning";
-    if (r > 200 && g < 80 && b > 200) return "Magenta";
-    if (r < 80 && g > 200 && b > 200) return "Cyan";
-    if (r > 180 && g > 180 && b > 180) return "Putih";
-    if (r < 60 && g < 60 && b < 60) return "Hitam";
-    return "Tidak Diketahui";
+function rgbToHex([r,g,b]) {
+  return "#" + [r,g,b].map(v => v.toString(16).padStart(2, "0")).join("");
+}
+
+// 💡 LOOP DETEKSI — SUDAH DIPERBAIKI
+async function detectLoop() {
+  if (!running) return;
+
+  const w = video.videoWidth;
+  const h = video.videoHeight;
+
+  if (w === 0 || h === 0) {
+    requestAnimationFrame(detectLoop);
+    return;
   }
 
-  function toHex([r,g,b]) {
-    return "#" + [r,g,b].map(v => v.toString(16).padStart(2,"0")).join("");
-  }
+  canvas.width = w;
+  canvas.height = h;
+  ctx.clearRect(0, 0, w, h);
 
-  async function detectFrame() {
-    if (!running) return;
+  const predictions = await model.detect(video);
 
-    const w = video.videoWidth;
-    const h = video.videoHeight;
-    canvas.width = w;
-    canvas.height = h;
+  predictions.forEach(pred => {
+    const [x, y, width, height] = pred.bbox;
 
-    const predictions = await model.detect(video);
-    ctx.clearRect(0,0,w,h);
+    // Ambil warna dari tengah bounding-box
+    hidden.width = width;
+    hidden.height = height;
 
-    objectList.innerHTML = "";
+    hctx.drawImage(video, x, y, width, height, 0, 0, width, height);
 
-    predictions.forEach(pred => {
-      const [x,y,width,height] = pred.bbox;
+    const px = hctx.getImageData(width / 2, height / 2, 1, 1).data;
+    const rgb = [px[0], px[1], px[2]];
+    const hex = rgbToHex(rgb);
+    const colorName = getColorName(rgb);
 
-      // ambil warna tengah bounding-box
-      hiddenCanvas.width = width;
-      hiddenCanvas.height = height;
-      hctx.drawImage(video, x, y, width, height, 0, 0, width, height);
+    // Gambar kotak
+    ctx.strokeStyle = hex;
+    ctx.lineWidth = 3;
+    ctx.strokeRect(x, y, width, height);
 
-      const cx = Math.floor(width/2);
-      const cy = Math.floor(height/2);
-
-      const pixel = hctx.getImageData(cx, cy, 1, 1).data;
-      const rgb = [pixel[0], pixel[1], pixel[2]];
-      const hex = toHex(rgb);
-      const colorName = getColorName(rgb);
-
-      // gambar kotak objek
-      ctx.strokeStyle = hex;
-      ctx.lineWidth = 3;
-      ctx.strokeRect(x, y, width, height);
-
-      ctx.fillStyle = hex;
-      ctx.fillRect(x, y - 25, 140, 22);
-
-      ctx.fillStyle = "#fff";
-      ctx.font = "14px sans-serif";
-      ctx.fillText(`${pred.class} (${colorName})`, x + 4, y - 8);
-
-      objectList.innerHTML += `
-        <div class="item">
-          ${pred.class} → <b>${colorName}</b>
-          <span class="color-swatch" style="background:${hex}"></span>
-        </div>
-      `;
-    });
-
-    requestAnimationFrame(detectFrame);
-  }
-
-  async function startCamera() {
-    stream = await navigator.mediaDevices.getUserMedia({ video: true });
-    video.srcObject = stream;
-
-    startBtn.disabled = true;
-    stopBtn.disabled = false;
-
-    running = true;
-    detectFrame();
-  }
-
-  function stopCamera() {
-    if (stream) stream.getTracks().forEach(t => t.stop());
-    running = false;
-    startBtn.disabled = false;
-    stopBtn.disabled = true;
-  }
-
-  // Load model dulu
-  cocoSsd.load().then(m => {
-    model = m;
+    // Label
+    ctx.fillStyle = hex;
+    ctx.fillRect(x, y - 22, 150, 20);
+    ctx.fillStyle = "white";
+    ctx.font = "14px sans-serif";
+    ctx.fillText(pred.class + " (" + colorName + ")", x + 4, y - 7);
   });
 
-  startBtn.onclick = startCamera;
-  stopBtn.onclick = stopCamera;
+  requestAnimationFrame(detectLoop);
+}
+
+// 📌 FIX: Tunggu video benar-benar siap
+video.onloadeddata = () => {
+  console.log("Video siap ✔");
+};
+
+// 🔥 START CAMERA (TELAH DIPERBAIKI)
+async function startCamera() {
+  stream = await navigator.mediaDevices.getUserMedia({ video: true });
+  video.srcObject = stream;
+
+  // Tunggu video siap
+  await video.play();
+
+  status.innerText = "Deteksi berjalan...";
+  startBtn.disabled = true;
+  stopBtn.disabled = false;
+
+  running = true;
+  detectLoop();
+}
+
+function stopCamera() {
+  running = false;
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  status.innerText = "Kamera dihentikan.";
+  startBtn.disabled = false;
+  stopBtn.disabled = true;
+}
+
+// 🔥 LOAD MODEL (FIXED)
+cocoSsd.load().then(m => {
+  model = m;
+  status.innerText = "Model siap ✔ Klik mulai kamera";
+  startBtn.disabled = false;
+});
+
+startBtn.onclick = startCamera;
+stopBtn.onclick = stopCamera;
 </script>
 
 </body>
