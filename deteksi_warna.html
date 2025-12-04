@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deteksi Warna Kamera</title>
+
+  <style>
+    :root {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --bg: #f5f5f7;
+      --card: #ffffff;
+      --border: #e5e5e8;
+      --text-main: #1d1d1f;
+      --text-secondary: #6e6e73;
+      --accent: #0a84ff;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text-main);
+      margin: 0;
+      padding: 24px;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 22px;
+      font-size: 22px;
+      font-weight: 600;
+    }
+
+    .container {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 24px;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+      border: 1px solid var(--border);
+    }
+
+    video {
+      border-radius: 18px;
+      display: block;
+      width: 420px;
+      max-width: 90vw;
+    }
+
+    button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 12px 18px;
+      border-radius: 14px;
+      cursor: pointer;
+      transition: 0.2s;
+      font-size: 15px;
+    }
+    button:hover {
+      background: #006de6;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    .color-preview {
+      width: 80px;
+      height: 80px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      box-shadow: inset 0 0 8px rgba(0,0,0,0.1);
+    }
+
+    .info-box {
+      margin-top: 12px;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    .label {
+      font-weight: 600;
+    }
+
+  </style>
+</head>
+
+<body>
+  <h1>Deteksi Warna Kamera</h1>
+
+  <div class="container">
+
+    <!-- Kamera -->
+    <div class="card">
+      <video id="video" autoplay playsinline muted></video>
+      <br><br>
+      <button id="startBtn">Mulai Kamera</button>
+      <button id="stopBtn" disabled>Stop</button>
+    </div>
+
+    <!-- Panel Info -->
+    <div class="card" style="width:260px;">
+      <div class="label">Pratinjau Warna</div>
+      <div id="colorBox" class="color-preview"></div>
+
+      <div class="info-box">
+        <div><span class="label">Nama:</span> <span id="colorName">-</span></div>
+        <div><span class="label">RGB:</span> <span id="rgbValue">-</span></div>
+        <div><span class="label">HEX:</span> <span id="hexValue">-</span></div>
+      </div>
+    </div>
+
+  </div>
+
+  <canvas id="hiddenCanvas" style="display:none;"></canvas>
+
+  <script>
+    const video = document.getElementById("video");
+    const startBtn = document.getElementById("startBtn");
+    const stopBtn = document.getElementById("stopBtn");
+
+    const canvas = document.getElementById("hiddenCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const colorBox = document.getElementById("colorBox");
+    const rgbValue = document.getElementById("rgbValue");
+    const hexValue = document.getElementById("hexValue");
+    const colorName = document.getElementById("colorName");
+
+    let stream = null;
+    let loopRunning = false;
+
+    async function startCamera() {
+      stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      video.srcObject = stream;
+
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+
+      loopRunning = true;
+      detectLoop();
+    }
+
+    function stopCamera() {
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      loopRunning = false;
+    }
+
+    function detectColor(rgb) {
+      const [r,g,b] = rgb;
+
+      // simple color naming
+      if (r > 200 && g < 80 && b < 80) return "Merah";
+      if (r < 80 && g > 200 && b < 80) return "Hijau";
+      if (r < 80 && g < 80 && b > 200) return "Biru";
+      if (r > 200 && g > 200 && b < 80) return "Kuning";
+      if (r > 200 && g < 80 && b > 200) return "Magenta";
+      if (r < 80 && g > 200 && b > 200) return "Cyan";
+      if (r > 180 && g > 180 && b > 180) return "Putih";
+      if (r < 60 && g < 60 && b < 60) return "Hitam";
+      if (r > 150 && g > 100 && b < 80) return "Coklat";
+      return "Tidak Diketahui";
+    }
+
+    function toHex(n) {
+      return "#" + n.map(v => v.toString(16).padStart(2,"0")).join("").toUpperCase();
+    }
+
+    function detectLoop() {
+      if (!loopRunning) return;
+
+      const w = video.videoWidth;
+      const h = video.videoHeight;
+
+      if (w && h) {
+        canvas.width = w;
+        canvas.height = h;
+
+        // ambil frame
+        ctx.drawImage(video, 0, 0, w, h);
+
+        // ambil pixel di tengah
+        const px = ctx.getImageData(w/2, h/2, 1, 1).data;
+        const rgb = [px[0], px[1], px[2]];
+
+        const hex = toHex(rgb);
+        const name = detectColor(rgb);
+
+        // update UI
+        colorBox.style.background = hex;
+        rgbValue.textContent = `rgb(${rgb.join(", ")})`;
+        hexValue.textContent = hex;
+        colorName.textContent = name;
+      }
+
+      requestAnimationFrame(detectLoop);
+    }
+
+    startBtn.onclick = startCamera;
+    stopBtn.onclick = stopCamera;
+  </script>
+
+</body>
+</html>
