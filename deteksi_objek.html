@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Aplikasi Deteksi Objek — TensorFlow.js (COCO-SSD)</title>
+  <style>
+    :root{font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial}
+    body{margin:18px;background:#f7f8fa;color:#111}
+    h1{font-size:18px;margin:0 0 10px}
+    .controls{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+    label{font-size:13px}
+    select,input[type="radio"]{margin-left:6px}
+    button{padding:8px 12px;border-radius:8px;border:1px solid #ccc;background:white;cursor:pointer}
+    button:active{transform:translateY(1px)}
+    .panel{display:flex;gap:16px;align-items:flex-start}
+    .video-wrap{position:relative;background:#000;display:inline-block}
+    video{display:block;max-width:100%;border-radius:8px}
+    canvas.overlay{position:absolute;left:0;top:0;pointer-events:none}
+    .info{width:320px;max-width:40vw}
+    .log{background:#fff;padding:8px;border-radius:8px;border:1px solid #e0e0e0;height:220px;overflow:auto;font-size:12px}
+    .stat{font-size:13px;margin-top:8px}
+    .benchmark{font-size:12px;margin-top:8px;background:#fff;padding:8px;border-radius:8px;border:1px solid #eee}
+    .small{font-size:12px;color:#666}
+    .controls-row{display:flex;gap:8px;align-items:center}
+  </style>
+</head>
+<body>
+  <h1>Aplikasi Deteksi Objek — TensorFlow.js (COCO-SSD)</h1>
+
+  <div class="controls">
+    <div>
+      <label> Kamera:
+        <select id="cameraSelect"></select>
+      </label>
+    </div>
+
+    <div>
+      <label> Ukuran:
+        <select id="resolutionSelect">
+          <option value="320x240">320×240</option>
+          <option value="480x360" selected>480×360</option>
+          <option value="640x480">640×480</option>
+        </select>
+      </label>
+    </div>
+
+    <div>
+      <label> Process every N frames:
+        <select id="processEvery">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="controls-row">
+      <button id="startPreview">Start Preview</button>
+      <button id="stopPreview" disabled>Stop</button>
+      <button id="snapshot" disabled>Snapshot</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="video-wrap" id="videoContainer">
+      <video id="video" autoplay playsinline muted></video>
+      <canvas id="overlay" class="overlay"></canvas>
+    </div>
+
+    <div class="info">
+      <div class="stat">
+        <strong>Status model:</strong> <span id="modelStatus" class="small">memuat model...</span>
+      </div>
+
+      <div class="stat">
+        <strong>Deteksi terakhir:</strong>
+        <div id="lastDetections" class="log">Belum ada data.</div>
+      </div>
+
+      <div class="benchmark" aria-live="polite">
+        <strong>Benchmark (ms per deteksi)</strong>
+        <div>Rata-rata (last 50): <span id="avgMs">—</span> ms</div>
+        <div class="small">Data terakhir (50 max): <span id="msList">—</span></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.20.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2/dist/coco-ssd.min.js"></script>
+
+  <script>
+    // Elemen UI
+    const cameraSel = document.getElementById('cameraSelect');
+    const resolutionSel = document.getElementById('resolutionSelect');
+    const processEverySel = document.getElementById('processEvery');
+    const startBtn = document.getElementById('startPreview');
+    const stopBtn = document.getElementById('stopPreview');
+    const snapshotBtn = document.getElementById('snapshot');
+    const video = document.getElementById('video');
+    const overlay = document.getElementById('overlay');
+    const overlayCtx = overlay.getContext('2d');
+    const modelStatus = document.getElementById('modelStatus');
+    const lastDetections = document.getElementById('lastDetections');
+    const avgMsEl = document.getElementById('avgMs');
+    const msListEl = document.getElementById('msList');
+
+    let model = null;
+    let stream = null;
+    let running = false;
+    let rafId = null;
+    let frameCounter = 0;
+    const msHistory = [];
+
+    // Muat model COCO-SSD
+    (async function loadModel(){
+      try {
+        modelStatus.innerText = 'memuat model COCO-SSD...';
+        // opsi mobileNet v2 default inside
+        model = await cocoSsd.load();
+        modelStatus.innerText = 'model siap — COCO-SSD dimuat';
+      } catch (e) {
+        console.error(e);
+        modelStatus.innerText = 'gagal memuat model: ' + e.message;
+      }
+    })();
+
+    // Enumerasi device camera
+    async function enumerateCameras(){
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      cameraSel.innerHTML = '';
+      const cams = devices.filter(d => d.kind === 'videoinput');
+      if (cams.length === 0) {
+        cameraSel.innerHTML = '<option>No camera</option>';
+        return;
+      }
+      cams.forEach((c, idx) => {
+        const label = c.label || `Camera ${idx+1}`;
+        const opt = document.createElement('option');
+        opt.value = c.deviceId;
+        opt.text = label;
+        cameraSel.appendChild(opt);
+      });
+    }
+
+    // Set video resolution & start camera
+    async function startCamera(){
+      const deviceId = cameraSel.value || undefined;
+      const [w,h] = resolutionSel.value.split('x').map(Number);
+      const constraints = {
+        audio: false,
+        video: {
+          width: { ideal: w },
+          height: { ideal: h },
+          deviceId: deviceId ? { exact: deviceId } : undefined
+        }
+      };
+      if (stream) {
+        // stop existing
+        stopStream(stream);
+      }
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = stream;
+        await video.play();
+
+        // set canvas size to match video actual size
+        overlay.width = video.videoWidth || w;
+        overlay.height = video.videoHeight || h;
+      } catch (e) {
+        console.error('getUserMedia error:', e);
+        alert('Gagal akses kamera: ' + e.message);
+      }
+    }
+
+    function stopStream(s){
+      if (!s) return;
+      s.getTracks().forEach(t => t.stop());
+      stream = null;
+    }
+
+    function clearOverlay(){
+      overlayCtx.clearRect(0,0,overlay.width,overlay.height);
+    }
+
+    // Gambar bounding box
+    function drawDetections(detections){
+      clearOverlay();
+      overlayCtx.lineWidth = Math.max(2, Math.round(overlay.width/200));
+      overlayCtx.font = `${Math.max(10, Math.round(overlay.width/40))}px sans-serif`;
+      detections.forEach(d => {
+        const [x,y,width,height] = d.bbox;
+        // box
+        overlayCtx.strokeStyle = '#00FF88';
+        overlayCtx.beginPath();
+        overlayCtx.rect(x,y,width,height);
+        overlayCtx.stroke();
+        // label background
+        const text = `${d.class} ${(d.score*100).toFixed(1)}%`;
+        const textWidth = overlayCtx.measureText(text).width;
+        const pad = 6;
+        overlayCtx.fillStyle = 'rgba(0,0,0,0.6)';
+        overlayCtx.fillRect(x, Math.max(0,y-28), textWidth + pad, 24);
+        overlayCtx.fillStyle = '#fff';
+        overlayCtx.fillText(text, x + pad/2, Math.max(12, y - 8));
+      });
+    }
+
+    // Loop render + detection (process every N frames)
+    async function detectionLoop(){
+      if (!running) return;
+      frameCounter++;
+      const every = Number(processEverySel.value || 1);
+      if (model && (frameCounter % every === 0)) {
+        // resize overlay if video size changed
+        if (overlay.width !== video.videoWidth || overlay.height !== video.videoHeight) {
+          overlay.width = video.videoWidth;
+          overlay.height = video.videoHeight;
+        }
+        const t0 = performance.now();
+        try {
+          const detections = await model.detect(video);
+          const t1 = performance.now();
+          const dt = t1 - t0;
+          // record benchmark
+          msHistory.push(dt);
+          if (msHistory.length > 50) msHistory.shift();
+          const avg = (msHistory.reduce((a,b)=>a+b,0) / msHistory.length) || 0;
+          avgMsEl.innerText = avg.toFixed(1);
+          msListEl.innerText = msHistory.map(v => Math.round(v)).join(', ');
+          // render detections
+          drawDetections(detections);
+          // update log (top 5)
+          if (detections.length === 0) {
+            lastDetections.innerText = 'Tidak ada objek terdeteksi.';
+          } else {
+            lastDetections.innerHTML = detections.slice(0,8).map(d => {
+              return `${d.class} — ${(d.score*100).toFixed(1)}% (bbox: ${d.bbox.map(n=>Math.round(n)).join(',')})`;
+            }).join('\n');
+          }
+        } catch (err) {
+          console.error('Deteksi error:', err);
+        }
+      }
+      rafId = requestAnimationFrame(detectionLoop);
+    }
+
+    // UI handlers
+    startBtn.addEventListener('click', async () => {
+      startBtn.disabled = true;
+      startBtn.innerText = 'Menghubungkan...';
+      try {
+        await startCamera();
+        running = true;
+        stopBtn.disabled = false;
+        snapshotBtn.disabled = false;
+        startBtn.innerText = 'Running';
+        startBtn.disabled = true;
+        // ensure we have devices listed (label sometimes empty until permission)
+        await enumerateCameras();
+        detectionLoop();
+      } catch (e) {
+        console.error(e);
+        startBtn.innerText = 'Start Preview';
+        startBtn.disabled = false;
+      }
+    });
+
+    stopBtn.addEventListener('click', () => {
+      running = false;
+      stopBtn.disabled = true;
+      startBtn.disabled = false;
+      startBtn.innerText = 'Start Preview';
+      snapshotBtn.disabled = true;
+      if (rafId) cancelAnimationFrame(rafId);
+      clearOverlay();
+      if (stream) stopStream(stream);
+    });
+
+    snapshotBtn.addEventListener('click', () => {
+      // snapshot with overlay
+      const snapCanvas = document.createElement('canvas');
+      const w = overlay.width, h = overlay.height;
+      snapCanvas.width = w; snapCanvas.height = h;
+      const ctx = snapCanvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, w, h);
+      ctx.drawImage(overlay, 0, 0, w, h);
+      const dataUrl = snapCanvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = 'snapshot.png';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    });
+
+    // Change resolution: restart camera if running
+    resolutionSel.addEventListener('change', async () => {
+      if (stream) {
+        await startCamera();
+      }
+    });
+
+    cameraSel.addEventListener('change', async () => {
+      if (stream) {
+        await startCamera();
+      }
+    });
+
+    // init
+    (async function init(){
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert('getUserMedia tidak tersedia di browser Anda. Coba gunakan Chrome/Firefox terbaru.');
+        return;
+      }
+      await enumerateCameras();
+      // attempt to set canvas initial size matching default resolution
+      const [w,h] = resolutionSel.value.split('x').map(Number);
+      overlay.width = w; overlay.height = h;
+      lastDetections.innerText = 'Klik "Start Preview" lalu izinkan kamera.';
+      // on page visibility change, stop camera to save resources
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden && running) {
+          // auto-stop preview when tab hidden (optional)
+          // stopBtn.click();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
